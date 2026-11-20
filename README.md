@@ -17,8 +17,8 @@ Start with a quiet Spark and around **107 GiB of available memory** for this ser
 Run on the Spark with Linux ARM64, Python 3.9+, Bash 4.4+, Git, curl, Docker Engine and a working NVIDIA container runtime. The wrapper also checks the host utilities it needs. Use SSH to run these commands from another machine.
 
 ```sh
-git clone https://github.com/outsmartchad/dgx-spark-flash-next-recipe.git
-cd dgx-spark-flash-next-recipe
+git clone https://github.com/outsmartchad/qwen38-flash-next-single-dgx-spark-tensorfold.git
+cd qwen38-flash-next-single-dgx-spark-tensorfold
 
 python3 bin/recipe.py plan       # show effective inputs and settings
 python3 bin/recipe.py preflight  # check the host
