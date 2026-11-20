@@ -13,3 +13,6 @@ weights/
 /quick.json
 /standard.json
 /long.json
+
+/full-decode.json
+/full-prefill.json

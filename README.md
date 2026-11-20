@@ -50,19 +50,59 @@ The [native media check](tools/multimodal_smoke.py) submits the bundled PNG and 
 
 ## Benchmarks
 
+Measured on the resident TensorFold 1.2.7 server on one GB10 Spark on November 20, 2026. The [run configuration](results/running-profile.json) records the image, checkpoint, memory reserve, native video settings, and five configured slots.
+
+### Decode
+
+Three runs at every stream count for each workload. All 90 requests generated 256 tokens, with temperature zero, thinking off, and MTP enabled. **Total** is median whole-batch wall throughput, including prefill and request overhead. **Per request** is median engine decode. First content is the median across batch medians.
+
+| Streams | Prose total tok/s | Prose per request tok/s | Prose first content | Code total tok/s | Code per request tok/s | Code first content |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 45.9 | 47.0 | 156 ms | 81.0 | 84.4 | 140 ms |
+| 2 | 67.7 | 35.9 | 241 ms | 111.9 | 61.3 | 222 ms |
+| 3 | 86.6 | 30.9 | 328 ms | 137.4 | 50.0 | 301 ms |
+| 4 | 103.4 | 27.1 | 413 ms | 160.1 | 44.2 | 379 ms |
+| 5 | 106.7 | 23.3 | 492 ms | 164.2 | 36.6 | 458 ms |
+
+[Full decode JSON](results/full-decode-2026-11-20.json)
+
+### Fresh prefill and retrieval
+
+One request at each input length. Rates divide uncached input tokens by the engine’s prefill time. First content is measured from the beginning of the HTTP request to the first streamed text.
+
+| Input tokens | Cached tokens | Engine prefill tok/s | First content | Exact retrieval |
+| ---: | ---: | ---: | ---: | :---: |
+| 4,084 | 2 | 2,292 | 1.79 s | Pass |
+| 8,177 | 2 | 2,387 | 3.43 s | Pass |
+| 16,366 | 2 | 2,351 | 6.97 s | Pass |
+| 32,767 | 2 | 2,343 | 14.00 s | Pass |
+| 65,544 | 2 | 2,283 | 28.73 s | Pass |
+| 131,056 | 2 | 2,195 | 59.76 s | Pass |
+| 200,007 | 2 | 2,099 | 95.34 s | Pass |
+
+[Full prefill JSON](results/full-prefill-2026-11-20.json)
+
+### Validation
+
+| Check | Result | Last reported summary |
+| --- | --- | --- |
+| Typed, streamed and continued tool calls | Pass | toolcheck: 3/3 passed |
+| Prompt plus reply-budget admission at 262,144 | Pass | context_boundary: PASS: 16 checks; prompt=20, context=262144 |
+| Four follow-ups on a roughly 30K conversation | Pass | prompt_reuse: PASS: every follow-up resumed >= 90% of its prompt (worst 99.3%) |
+| Greedy parity with drafting disabled and concurrent requests | Pass | PASS conc: 5 concurrent replies equal the one-at-a-time ones (server max_batch_size 5) |
+
+[Upstream check receipts](results/validation-2026-11-20.json) · [Native image and video checks](results/native-media-smoke.json)
+
+Reproduce the matrix from a Spark shell:
+
 ```sh
-python3 bin/benchmark.py --profile quick --output quick.json
+python3 bin/benchmark.py --profile full-decode --seed 2026112031 --output full-decode.json
+python3 bin/benchmark.py --profile full-prefill --seed 2026112032 --output full-prefill.json
 ```
 
-Run from the Spark while other inference clients are idle. The quick profile checks one and five simultaneous streams, then a roughly 4K-token retrieval prompt. Larger profiles exercise longer prompts up to 200K and take longer to run. Each JSON record captures reported token counts, first content latency, decode or completion rates, aggregate throughput where measured, and whether the model recovered the synthetic marker. See [the benchmark methodology](docs/benchmarking.md) before comparing numbers.
+[Methodology and earlier inventory runs](docs/benchmarking.md) · [All 45 archived runs, including MTP, chunking, and GGUF/TurboQuant](docs/historical-benchmarks.md)
 
-### Observed on one Spark
-
-Two seeded runs on the resident server measured **47.4–59.2 tok/s** in single-stream engine decode and **134.6–135.8 tok/s** in end-to-end throughput across five short streams. These are individual runs with synthetic inventory output. [Quick run JSON](results/quick-2026-11-20.json) · [Standard run JSON](results/standard-2026-11-20.json)
-
-The standard run found the exact marker in **4,090**, **32,787**, and **131,056** input tokens. Time to first content was **1.80 s**, **14.01 s**, and **59.66 s**, respectively, with one request at a time.
-
-The launch settings expose a maximum context and configured slot count. The attached run data bounds the workloads we actually tested. A clean-machine install and independent reproduction are still open, and the recorded local image ID is an observation from a built image.
+The longest prompt and the five-stream decode tests ran as separate workloads. The context-boundary check tests prompt-plus-output admission using a short reply. A clean-machine build and independent reproduction are still open.
 
 ## Build another recipe
 

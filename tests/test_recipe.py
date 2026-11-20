@@ -19,6 +19,37 @@ import local_api
 import recipe
 
 
+class BenchmarkProfileTests(unittest.TestCase):
+    def test_full_decode_covers_both_workloads_and_all_slots(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(benchmark, "require_model"))
+            stack.enter_context(patch.object(benchmark, "stream_completion"))
+            batch = stack.enter_context(patch.object(benchmark, "decode_batch", side_effect=lambda *args: {}))
+            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            result = benchmark.benchmark(18889, "full-decode", 42, 5)
+
+        calls = [call.args for call in batch.call_args_list]
+        self.assertEqual(len(calls), 30)
+        self.assertEqual(len({call[1] for call in calls}), 30)
+        for workload in ("prose", "code"):
+            for streams in range(1, 6):
+                self.assertEqual(sum(call[2] == streams and call[4] == workload for call in calls), 3)
+        self.assertEqual(result["long_prompts"], [])
+
+    def test_full_prefill_keeps_a_failed_retrieval_in_the_results(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(benchmark, "require_model"))
+            stack.enter_context(patch.object(benchmark, "size_prompt", return_value=("synthetic", "FROST-EXAMPLE", 4096)))
+            stack.enter_context(patch.object(benchmark, "stream_completion", side_effect=lambda *args: (
+                {"prompt_tokens": 4096}, "missed",
+            )))
+            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            result = benchmark.benchmark(18889, "full-prefill", 42, 5)
+
+        self.assertEqual(len(result["long_prompts"]), 7)
+        self.assertTrue(all(not item["audit_code_matched"] for item in result["long_prompts"]))
+
+
 class LaunchTests(unittest.TestCase):
     image_id = "sha256:" + "a" * 64
     def test_plan_matches_start_and_ignores_parent_launch_settings(self):

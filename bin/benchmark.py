@@ -21,11 +21,15 @@ PROFILES = {
     "quick": ((1, 5), (4096,)),
     "standard": ((1, 3, 5), (4096, 32768, 131072)),
     "long": ((1, 3, 5), (4096, 32768, 131072, 200000)),
+    "full-decode": ((1, 2, 3, 4, 5), ()),
+    "full-prefill": ((), (4096, 8192, 16384, 32768, 65536, 131072, 200000)),
 }
 TEMPLATE = {"enable_thinking": False}
 COMPLETION_BUDGET = 256
 STREAM_LINE_LIMIT = 256 * 1024
 REGIONS = ("cedar", "bay", "canyon", "delta", "field", "grove", "hill", "lake")
+PROSE_TOPICS = ("hash tables", "B-trees", "ring buffers", "skip lists", "Bloom filters")
+CODE_TOPICS = ("binary heap", "ring buffer", "interval index", "prefix trie", "LRU cache")
 
 
 def messages(text):
@@ -43,8 +47,18 @@ def token_count(port, text, timeout):
     return count
 
 
-def output_prompt(seed, stream):
+def output_prompt(seed, stream, workload="inventory"):
     run_id = hashlib.sha256(f"{seed}:{stream}".encode()).hexdigest()[:16]
+    if workload == "prose":
+        topic = PROSE_TOPICS[stream]
+        return (f"Batch {run_id}. Write a long tutorial about {topic}. Explain the design, "
+                "operations, trade-offs, memory layout, and failure cases. Use plain prose "
+                "with detailed examples and continue for at least 800 words.")
+    if workload == "code":
+        topic = CODE_TOPICS[stream]
+        return (f"Batch {run_id}. Write a complete Python implementation of a {topic}. "
+                "Include the main data structure, helpers, boundary handling, and at least "
+                "eight unittest cases. Output only Python source.")
     return (f"Batch {run_id}. Generate at least 75 lines of synthetic inventory records. "
             "Each line contains an item number, a tool name, and a two-word description. "
             "Start with item 1, increment by one, and write the records with no heading.")
@@ -168,16 +182,16 @@ def stream_completion(port, prompt, max_tokens, timeout, barrier=None):
     }, "".join(pieces)
 
 
-def decode_batch(port, seed, streams, timeout):
+def decode_batch(port, seed, streams, timeout, workload="inventory"):
     barrier = threading.Barrier(streams)
-    inputs = [output_prompt(seed, stream) for stream in range(streams)]
+    inputs = [output_prompt(seed, stream, workload) for stream in range(streams)]
     with ThreadPoolExecutor(max_workers=streams) as workers:
         begin = time.monotonic()
         futures = [workers.submit(stream_completion, port, text, COMPLETION_BUDGET, timeout, barrier)
                    for text in inputs]
         results = [future.result()[0] for future in futures]
         wall = time.monotonic() - begin
-    return {"streams": streams, "batch_elapsed_seconds": wall,
+    return {"streams": streams, "workload": workload, "batch_elapsed_seconds": wall,
             "batch_client_completion_tokens_per_second": sum(row["completion_tokens"] for row in results) / wall,
             "median_first_content_seconds": statistics.median(row["first_content_seconds"] for row in results),
             "requests": results}
@@ -188,9 +202,17 @@ def benchmark(port, profile, seed, timeout):
     stream_counts, prompt_targets = PROFILES[profile]
     stream_completion(port, output_prompt(seed, -1), 16, timeout)
     decode_rows = []
-    for streams in stream_counts:
-        print(f"Running {streams} concurrent completion request(s)", file=sys.stderr, flush=True)
-        decode_rows.append(decode_batch(port, seed + streams * 1009, streams, timeout))
+    workloads = ("prose", "code") if profile == "full-decode" else ("inventory",)
+    repeats = 3 if profile == "full-decode" else 1
+    for workload_index, workload in enumerate(workloads):
+        for streams in stream_counts:
+            for repetition in range(repeats):
+                print(f"{workload}: C{streams}, repeat {repetition + 1}/{repeats}",
+                      file=sys.stderr, flush=True)
+                trial_seed = seed + streams * 1009 + workload_index * 100000 + repetition * 10000
+                batch = decode_batch(port, trial_seed, streams, timeout, workload)
+                batch["repetition"] = repetition + 1
+                decode_rows.append(batch)
     prefill_rows = []
     for target in prompt_targets:
         print(f"Running approximately {target:,} input tokens", file=sys.stderr, flush=True)
@@ -198,22 +220,24 @@ def benchmark(port, profile, seed, timeout):
         result, text = stream_completion(port, prompt, 32, timeout)
         if result["prompt_tokens"] != tokenized:
             raise ApiError(f"/tokenize counted {tokenized}, completion counted {result['prompt_tokens']}")
-        if text.strip() != expected:
+        recovered = text.strip() == expected
+        if not recovered and profile != "full-prefill":
             raise ApiError(f"{tokenized}-token prompt returned an incorrect audit code")
         result.update(target_prompt_tokens=target, tokenized_prompt_tokens=tokenized,
-                      audit_code_matched=True)
+                      audit_code_matched=recovered)
         prefill_rows.append(result)
     return {
         "schema_version": 1, "endpoint": f"http://{HOST}:{port}/v1", "model": MODEL,
         "profile": profile, "seed": seed, "request_timeout_seconds": timeout,
         "thinking": False, "temperature": 0, "decode_max_tokens": COMPLETION_BUDGET,
+        "decode_repeats_per_case": repeats,
         "notes": [
             "Client elapsed time includes loopback HTTP, scheduling, prefill, decode, and final usage.",
             "First content is the first nonempty streamed text fragment.",
             "Batch client rate is all reported completion tokens divided by measured batch wall time.",
             "Engine counters are nullable. Prefill rate excludes reported cached prompt tokens.",
             "A repeated seed may hit prompt cache. Use a new seed for a fresh run.",
-            "Profiles make one measurement at each point with synthetic text and representative concurrency.",
+            "The full-decode profile repeats each workload and concurrency three times.",
         ],
         "completion_batches": decode_rows, "long_prompts": prefill_rows,
     }

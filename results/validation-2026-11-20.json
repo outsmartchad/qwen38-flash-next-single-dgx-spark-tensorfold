@@ -1,0 +1,61 @@
+{
+  "upstream_revision": "b956dba8a468f1cf376d60bbbd9b9ed51ff2f0a9",
+  "date": "2026-11-20",
+  "results": {
+    "tool_calling": {
+      "script": "toolcheck.py",
+      "args": [],
+      "exit_code": 0,
+      "elapsed_s": 2.936,
+      "summary": [
+        "toolcheck: 3/3 passed"
+      ]
+    },
+    "context_admission": {
+      "script": "context_boundary.py",
+      "args": [
+        "--context",
+        "262144"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 3.969,
+      "summary": [
+        "context_boundary: PASS: 16 checks; prompt=20, context=262144"
+      ]
+    },
+    "prompt_reuse": {
+      "script": "prompt_reuse.py",
+      "args": [
+        "30000",
+        "4"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 17.952,
+      "summary": [
+        "turn 0 (cold): prompt 31557 tokens, cached 0, prefill 13.43 s, wall 14.1 s",
+        "turn 1: prompt 31775 tokens, cached 31550 (99.3%), prefill 0.33 s, wall 1.4 s",
+        "turn 2: prompt 31990 tokens, cached 31768 (99.3%), prefill 0.33 s, wall 0.9 s",
+        "turn 3: prompt 32193 tokens, cached 31983 (99.3%), prefill 0.32 s, wall 0.8 s",
+        "turn 4: prompt 32400 tokens, cached 32186 (99.3%), prefill 0.32 s, wall 0.7 s",
+        "prompt_reuse: PASS: every follow-up resumed >= 90% of its prompt (worst 99.3%)"
+      ]
+    },
+    "greedy_exactness": {
+      "script": "exact.py",
+      "args": [
+        "--prompts",
+        "5",
+        "--max-tokens",
+        "96",
+        "--pad",
+        "3000"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 29.585,
+      "summary": [
+        "PASS draft: 5 drafted replies (291 drafts accepted) equal the \"draft\": false ones",
+        "PASS conc: 5 concurrent replies equal the one-at-a-time ones (server max_batch_size 5)"
+      ]
+    }
+  }
+}
