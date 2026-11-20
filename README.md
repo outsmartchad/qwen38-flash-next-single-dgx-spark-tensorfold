@@ -1,8 +1,77 @@
 # Qwen3.8 Flash Next on one DGX Spark
 
-Run NVIDIA’s quantized **Qwen3.8 Flash Next** on one 128 GB DGX Spark using **TensorFold**. This recipe pins the upstream build and checkpoint, serves an OpenAI-compatible API on localhost, and includes text, image, and native-video checks plus a streaming benchmark. The configuration is based on a working single-Spark deployment tested on 20 November 2026.
+Serve NVIDIA’s **Qwen3.8 Flash Next NVFP4** checkpoint with **TensorFold** on one 128 GB DGX Spark. The tested profile keeps the API on localhost and supports chat, native images, and native video in a single model.
 
-[Hardware and runtime](#hardware-and-runtime) · [Quick start](#quick-start) · [Benchmarks](#benchmarks) · [Model backlog](docs/model-backlog.md) · [Recipe template](docs/reusing-this-recipe.md)
+[Benchmarks](#benchmarks) · [Images and video](#images-and-video) · [Hardware and runtime](#hardware-and-runtime) · [Quick start](#quick-start) · [Validation](#validation)
+
+## Benchmarks
+
+All results ran on a resident Flash Next instance on one GB10 Spark using TensorFold 1.2.7. Each decode row used three repetitions, with 256 completion tokens, temperature zero, thinking disabled, and MTP enabled. **Aggregate** is whole-batch wall throughput. **Per request** is the median engine decode rate. **TTFT** in these tables means client time to first nonempty streamed text.
+
+### Decode, prose
+
+| Concurrent requests | Aggregate | Per request | TTFT |
+| ---: | ---: | ---: | ---: |
+| 1 | 45.9 tok/s | 47.0 tok/s | 156 ms |
+| 2 | 67.7 tok/s | 35.9 tok/s | 241 ms |
+| 3 | 86.6 tok/s | 30.9 tok/s | 328 ms |
+| 4 | 103.4 tok/s | 27.1 tok/s | 413 ms |
+| 5 | 106.7 tok/s | 23.3 tok/s | 492 ms |
+
+### Decode, code
+
+| Concurrent requests | Aggregate | Per request | TTFT |
+| ---: | ---: | ---: | ---: |
+| 1 | 81.0 tok/s | 84.4 tok/s | 140 ms |
+| 2 | 111.9 tok/s | 61.3 tok/s | 222 ms |
+| 3 | 137.4 tok/s | 50.0 tok/s | 301 ms |
+| 4 | 160.1 tok/s | 44.2 tok/s | 379 ms |
+| 5 | 164.2 tok/s | 36.6 tok/s | 458 ms |
+
+### Prefill, fresh prompts
+
+| Prompt tokens | Prefill | TTFT |
+| ---: | ---: | ---: |
+| 4,084 | 2,292 tok/s | 1.79 s |
+| 8,177 | 2,387 tok/s | 3.43 s |
+| 16,366 | 2,351 tok/s | 6.97 s |
+| 32,767 | 2,343 tok/s | 14.00 s |
+| 65,544 | 2,283 tok/s | 28.73 s |
+| 131,056 | 2,195 tok/s | 59.76 s |
+| 200,007 | 2,099 tok/s | 95.34 s |
+
+The prefill rate divides uncached input tokens by engine prefill time. Each prompt reused two template tokens. All seven runs returned the correct retrieval marker. Five-stream decode and the longest-input check were separate workloads.
+
+[Decode data](results/full-decode-2026-11-20.json) · [Prefill data](results/full-prefill-2026-11-20.json) · [How to reproduce](docs/benchmarking.md) · [45 archived tuning runs](docs/historical-benchmarks.md)
+
+The layout follows [Mia’s performance tables](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold#performance). These results use this repo’s benchmark harness and prompts. Mia's SparkDash tables use a different aggregate calculation and sampling for prose.
+
+## Images and video
+
+Flash Next has its own vision encoder. Send an image as an OpenAI-style `image_url` content part. This recipe enables native video too. It accepts an inline MP4 as a `video_url` part, decodes it with the bundled local decoder, and samples visual frames. [NVIDIA model card](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-FP4-Local)
+
+### Paired image spot check
+
+With the same eight generated PNGs and questions on one Spark, Flash Next answered **7/8** exactly and Qwen3-VL 8B answered **8/8**. Both backends ran locally at temperature zero with a 320-token generation limit. The score uses the same exact-answer normalization for both. This small test covers a mix of OCR and visual reasoning tasks.
+
+| Image task | Flash Next | Qwen3-VL 8B |
+| --- | :---: | :---: |
+| Clean equipment label | Pass | Pass |
+| Faint, small serial | Pass | Pass |
+| Rotated label | Miss | Pass |
+| Traditional Chinese sign | Pass | Pass |
+| Receipt total | Pass | Pass |
+| Table row and column | Pass | Pass |
+| Relative bar height | Pass | Pass |
+| Object position | Pass | Pass |
+
+Flash Next read small print, traditional Chinese, receipts, and tables. It also handled the simple chart and spatial question. Qwen3-VL recovered the rotated label that Flash Next missed. Rotating the same image upright let Flash Next read the serial correctly. This supports using Flash Next for routine image requests and keeping the second model available for difficult cases.
+
+[Answers, prompts, and timings](results/vision-comparison-2026-11-20.json) · [Spark multimodal setup](https://github.com/outsmartchad/dgx-spark-setup)
+
+### Native media smoke check
+
+The included PNG and 12-second MP4 returned **red** and **red → blue → green** respectively. Run `python3 tools/multimodal_smoke.py` against a running server. [Media smoke data](results/native-media-smoke.json) · [Test fixtures](fixtures/README.md)
 
 ## Hardware and runtime
 
@@ -42,47 +111,15 @@ curl -fsS --max-time 30 http://127.0.0.1:18889/v1/chat/completions \
 
 To stop an instance launched by this recipe, use `python3 bin/recipe.py stop` with the same port and data directory.
 
-## What this repository adds
+## How the recipe starts the server
 
-This project starts from Mia’s single-Spark engine build. The wrapper fetches a pinned checkout and uses the upstream scripts to apply the five patches and stage the NVIDIA weights. The base NGC image is pinned by digest and the recipe builds under its own image tag and launches using the verified local image ID. Our additions are the loopback serving profile, lifecycle checks, multimodal regression fixtures, benchmark harness, and a record of the configuration we observed on hardware.
+`fetch` checks out the pinned Mia recipe. `prepare` uses that checkout to build TensorFold and its five patches against a digest-pinned NVIDIA image and stage the checkpoint. `start` checks the prepared marker, verified image ID, and loopback port before launching the recipe-owned container. `status` and `smoke` can check an already-running compatible endpoint.
 
-The [native media check](tools/multimodal_smoke.py) submits the bundled PNG and 12-second MP4 as `image_url` and `video_url` content parts. It checks that Flash Next sees the red square and reports the three colors in time order. The recorded run returned **red**, then **red → blue → green**, in 0.35 and 1.01 seconds respectively. This exercises the local FFmpeg-backed video path and checks visual order. [Native media results](results/native-media-smoke.json) · [Synthetic fixtures](fixtures/README.md)
+The tests above ran on our resident deployment. The launcher passed its tests and upstream dry run. A fresh build and launch through the wrapper remain open.
 
-## Benchmarks
+[Implementation and exact launch settings](bin/recipe.py) · [Observed running profile](results/running-profile.json)
 
-Measured on the resident TensorFold 1.2.7 server on one GB10 Spark on November 20, 2026. The [run configuration](results/running-profile.json) records the image, checkpoint, memory reserve, native video settings, and five configured slots.
-
-### Decode
-
-Three runs at every stream count for each workload. All 90 requests generated 256 tokens, with temperature zero, thinking off, and MTP enabled. **Total** is median whole-batch wall throughput, including prefill and request overhead. **Per request** is median engine decode. First content is the median across batch medians.
-
-| Streams | Prose total tok/s | Prose per request tok/s | Prose first content | Code total tok/s | Code per request tok/s | Code first content |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 45.9 | 47.0 | 156 ms | 81.0 | 84.4 | 140 ms |
-| 2 | 67.7 | 35.9 | 241 ms | 111.9 | 61.3 | 222 ms |
-| 3 | 86.6 | 30.9 | 328 ms | 137.4 | 50.0 | 301 ms |
-| 4 | 103.4 | 27.1 | 413 ms | 160.1 | 44.2 | 379 ms |
-| 5 | 106.7 | 23.3 | 492 ms | 164.2 | 36.6 | 458 ms |
-
-[Full decode JSON](results/full-decode-2026-11-20.json)
-
-### Fresh prefill and retrieval
-
-One request at each input length. Rates divide uncached input tokens by the engine’s prefill time. First content is measured from the beginning of the HTTP request to the first streamed text.
-
-| Input tokens | Cached tokens | Engine prefill tok/s | First content | Exact retrieval |
-| ---: | ---: | ---: | ---: | :---: |
-| 4,084 | 2 | 2,292 | 1.79 s | Pass |
-| 8,177 | 2 | 2,387 | 3.43 s | Pass |
-| 16,366 | 2 | 2,351 | 6.97 s | Pass |
-| 32,767 | 2 | 2,343 | 14.00 s | Pass |
-| 65,544 | 2 | 2,283 | 28.73 s | Pass |
-| 131,056 | 2 | 2,195 | 59.76 s | Pass |
-| 200,007 | 2 | 2,099 | 95.34 s | Pass |
-
-[Full prefill JSON](results/full-prefill-2026-11-20.json)
-
-### Validation
+## Validation
 
 | Check | Result | Last reported summary |
 | --- | --- | --- |
@@ -92,17 +129,6 @@ One request at each input length. Rates divide uncached input tokens by the engi
 | Greedy parity with drafting disabled and concurrent requests | Pass | PASS conc: 5 concurrent replies equal the one-at-a-time ones (server max_batch_size 5) |
 
 [Upstream check receipts](results/validation-2026-11-20.json) · [Native image and video checks](results/native-media-smoke.json)
-
-Reproduce the matrix from a Spark shell:
-
-```sh
-python3 bin/benchmark.py --profile full-decode --seed 2026112031 --output full-decode.json
-python3 bin/benchmark.py --profile full-prefill --seed 2026112032 --output full-prefill.json
-```
-
-[Methodology and earlier inventory runs](docs/benchmarking.md) · [All 45 archived runs, including MTP, chunking, and GGUF/TurboQuant](docs/historical-benchmarks.md)
-
-The longest prompt and the five-stream decode tests ran as separate workloads. The context-boundary check tests prompt-plus-output admission using a short reply. A clean-machine build and independent reproduction are still open.
 
 ## Build another recipe
 

@@ -1,0 +1,217 @@
+{
+  "date": "2026-11-20",
+  "test": "small synthetic paired image spot check",
+  "settings": {
+    "temperature": 0,
+    "flash_next_resident": true,
+    "ollama_starts_unloaded": true,
+    "ollama_kept_warm_during_run": true,
+    "max_generated_tokens": 320,
+    "api": "Spark loopback"
+  },
+  "results": {
+    "flash-next": {
+      "model": "Qwen3.8-Flash-Next",
+      "correct": 7,
+      "cases": [
+        {
+          "case": "clean_label",
+          "fixture_sha256": "2155a304efde22f3dc9e577a94d3afb80433711ecf2ee4005aab217e805baf1d",
+          "prompt": "What is the equipment ID? Reply with the ID only.",
+          "expected": "SPARK-4827",
+          "answer": "SPARK-4827",
+          "correct": true,
+          "elapsed_s": 0.3,
+          "generated_tokens": 8,
+          "finish": "stop"
+        },
+        {
+          "case": "faint_small_print",
+          "fixture_sha256": "8bda61091bf115f71631ac98f2688f5bc44eb0cdeee92ba5aed4e8001c72d496",
+          "prompt": "Read the faint line labeled Serial. Reply with the serial only.",
+          "expected": "K7P-0482",
+          "answer": "K7P-0482",
+          "correct": true,
+          "elapsed_s": 0.535,
+          "generated_tokens": 9,
+          "finish": "stop"
+        },
+        {
+          "case": "rotated_label",
+          "fixture_sha256": "0ed5795135bdaa4b2380b643f41d91754ec74b758be8e43002832db654f83fd6",
+          "prompt": "What is the serial on the rotated label? Reply with only the serial.",
+          "expected": "AB-2916",
+          "answer": "420160",
+          "correct": false,
+          "elapsed_s": 0.338,
+          "generated_tokens": 7,
+          "finish": "stop"
+        },
+        {
+          "case": "traditional_chinese",
+          "fixture_sha256": "b5d5d8289fef55afd2f14ab1438d3300438c31d53709c5c8ecfc9ea3d141d0a1",
+          "prompt": "只輸出圖片中的目的地名稱，不要加標點。",
+          "expected": "維多利亞港",
+          "answer": "維多利亞港",
+          "correct": true,
+          "elapsed_s": 0.383,
+          "generated_tokens": 5,
+          "finish": "stop"
+        },
+        {
+          "case": "receipt_total",
+          "fixture_sha256": "06bfa1afac3bd5cadd867fcc5c986967160f7188570e6293528c96a15c687615",
+          "prompt": "Read the amount printed on the TOTAL line. Reply only with the numeric amount, including two decimal places.",
+          "expected": "43.80",
+          "answer": "43.80",
+          "correct": true,
+          "elapsed_s": 0.29,
+          "generated_tokens": 6,
+          "finish": "stop"
+        },
+        {
+          "case": "table_lookup",
+          "fixture_sha256": "7d6674018a2d454b82a845b606d95244304e114ed2fab1026d0b3e17ac726c83",
+          "prompt": "In the Jun row, what is the value in the Received column? Reply with only the number.",
+          "expected": "18",
+          "answer": "18",
+          "correct": true,
+          "elapsed_s": 0.214,
+          "generated_tokens": 3,
+          "finish": "stop"
+        },
+        {
+          "case": "chart_rank",
+          "fixture_sha256": "fbceb836343364084e78d24a2787255673d641775a033bc5ee6c8cae46ac5eda",
+          "prompt": "Which quarter has the second-tallest bar? Reply with only its label.",
+          "expected": "Q4",
+          "answer": "Q4",
+          "correct": true,
+          "elapsed_s": 0.214,
+          "generated_tokens": 3,
+          "finish": "stop"
+        },
+        {
+          "case": "spatial_relation",
+          "fixture_sha256": "f58bf6deeaaf6ac2e5dab3ff68addf6a668343e70598b2b11ce25155d72ae750",
+          "prompt": "What color and shape is immediately to the left of the green diamond? Reply with just the color and shape.",
+          "expected": "red circle",
+          "answer": "red circle",
+          "correct": true,
+          "elapsed_s": 0.212,
+          "generated_tokens": 3,
+          "finish": "stop"
+        }
+      ]
+    },
+    "qwen3-vl": {
+      "model": "qwen3-vl:8b",
+      "correct": 8,
+      "cases": [
+        {
+          "case": "clean_label",
+          "fixture_sha256": "2155a304efde22f3dc9e577a94d3afb80433711ecf2ee4005aab217e805baf1d",
+          "prompt": "What is the equipment ID? Reply with the ID only.",
+          "expected": "SPARK-4827",
+          "answer": "SPARK-4827",
+          "correct": true,
+          "elapsed_s": 5.148,
+          "generated_tokens": 60,
+          "finish": "stop",
+          "ollama_load_s": 2.797
+        },
+        {
+          "case": "faint_small_print",
+          "fixture_sha256": "8bda61091bf115f71631ac98f2688f5bc44eb0cdeee92ba5aed4e8001c72d496",
+          "prompt": "Read the faint line labeled Serial. Reply with the serial only.",
+          "expected": "K7P-0482",
+          "answer": "K7P-0482",
+          "correct": true,
+          "elapsed_s": 2.441,
+          "generated_tokens": 68,
+          "finish": "stop",
+          "ollama_load_s": 0.001
+        },
+        {
+          "case": "rotated_label",
+          "fixture_sha256": "0ed5795135bdaa4b2380b643f41d91754ec74b758be8e43002832db654f83fd6",
+          "prompt": "What is the serial on the rotated label? Reply with only the serial.",
+          "expected": "AB-2916",
+          "answer": "AB-2916",
+          "correct": true,
+          "elapsed_s": 3.288,
+          "generated_tokens": 104,
+          "finish": "stop",
+          "ollama_load_s": 0.001
+        },
+        {
+          "case": "traditional_chinese",
+          "fixture_sha256": "b5d5d8289fef55afd2f14ab1438d3300438c31d53709c5c8ecfc9ea3d141d0a1",
+          "prompt": "只輸出圖片中的目的地名稱，不要加標點。",
+          "expected": "維多利亞港",
+          "answer": "維多利亞港",
+          "correct": true,
+          "elapsed_s": 2.964,
+          "generated_tokens": 90,
+          "finish": "stop",
+          "ollama_load_s": 0.001
+        },
+        {
+          "case": "receipt_total",
+          "fixture_sha256": "06bfa1afac3bd5cadd867fcc5c986967160f7188570e6293528c96a15c687615",
+          "prompt": "Read the amount printed on the TOTAL line. Reply only with the numeric amount, including two decimal places.",
+          "expected": "43.80",
+          "answer": "43.80",
+          "correct": true,
+          "elapsed_s": 2.346,
+          "generated_tokens": 63,
+          "finish": "stop",
+          "ollama_load_s": 0.001
+        },
+        {
+          "case": "table_lookup",
+          "fixture_sha256": "7d6674018a2d454b82a845b606d95244304e114ed2fab1026d0b3e17ac726c83",
+          "prompt": "In the Jun row, what is the value in the Received column? Reply with only the number.",
+          "expected": "18",
+          "answer": "18",
+          "correct": true,
+          "elapsed_s": 2.463,
+          "generated_tokens": 68,
+          "finish": "stop",
+          "ollama_load_s": 0.001
+        },
+        {
+          "case": "chart_rank",
+          "fixture_sha256": "fbceb836343364084e78d24a2787255673d641775a033bc5ee6c8cae46ac5eda",
+          "prompt": "Which quarter has the second-tallest bar? Reply with only its label.",
+          "expected": "Q4",
+          "answer": "Q4",
+          "correct": true,
+          "elapsed_s": 3.184,
+          "generated_tokens": 99,
+          "finish": "stop",
+          "ollama_load_s": 0.001
+        },
+        {
+          "case": "spatial_relation",
+          "fixture_sha256": "f58bf6deeaaf6ac2e5dab3ff68addf6a668343e70598b2b11ce25155d72ae750",
+          "prompt": "What color and shape is immediately to the left of the green diamond? Reply with just the color and shape.",
+          "expected": "red circle",
+          "answer": "red circle",
+          "correct": true,
+          "elapsed_s": 2.46,
+          "generated_tokens": 66,
+          "finish": "stop",
+          "ollama_load_s": 0.001
+        }
+      ]
+    }
+  },
+  "rotation_diagnostic": {
+    "model": "Qwen3.8-Flash-Next",
+    "expected": "AB-2916",
+    "answer": "AB-2916",
+    "correct": true,
+    "transform": "rotate the synthetic label 90 degrees clockwise"
+  }
+}
