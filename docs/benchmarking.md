@@ -34,9 +34,11 @@ The published [running profile](../results/running-profile.json) identifies the 
 
 ## RAM under decode load
 
-With `--sample-memory`, the benchmark samples Linux `/proc/meminfo` on the Spark about every 50 ms. Each batch uses 20 samples over the preceding second for its idle baseline, with Flash Next already loaded. **RAM left** is the median across repeats of each batch’s minimum `MemAvailable`. **Extra RAM** is the median drop from each batch’s own idle median to its minimum while running. **Δ vs prior** subtracts the extra RAM in the preceding concurrency row, with loaded idle as the baseline for one request.
+With `--sample-memory`, the benchmark samples Linux `/proc/meminfo` on the Spark about every 50 ms. Each batch uses 20 samples over the preceding second for its idle baseline, with Flash Next already loaded. For each batch, the benchmark records minimum `MemAvailable` during decode. Subtracting that minimum from the batch’s idle median estimates its extra RAM use.
 
-`MemAvailable` estimates system-wide headroom on the unified-memory host. It includes the effects of Linux reclaimable caches and concurrent system activity. Small or negative steps can reflect variation between samples. The data also records `SwapFree` to flag changes. Run without other inference clients or media generation, and assess long contexts and image/video workloads separately.
+`MemAvailable` estimates system-wide headroom on the unified-memory host. It includes the effects of Linux reclaimable caches and concurrent system activity. The data also records `SwapFree` to flag changes. Run without other inference clients or media generation, and assess long contexts and image/video workloads separately.
+
+With five active requests, the median drop from idle was **453 MiB for prose** and **483 MiB for code**. The prose repeats ranged from approximately 0 to 1,054 MiB, and the code repeats ranged from 446 to 484 MiB. The lowest available RAM across the whole run was **30.85 GiB**. Variation between batches makes these measurements unsuitable for estimating a fixed cost per additional request.
 
 The running TensorFold log reported **4.83 GiB per configured stream slot** with a **262,144-token window**, FP8 main KV and MTP enabled. The five configured windows account for about **24.2 GiB of the engine’s startup KV budget**. Adding a configured slot and sending an extra short request to an existing slot are different measurements. [Pinned upstream KV and memory notes](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold/blob/b956dba8a468f1cf376d60bbbd9b9ed51ff2f0a9/README.md#kv-and-memory)
 

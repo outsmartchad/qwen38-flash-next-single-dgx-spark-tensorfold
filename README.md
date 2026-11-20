@@ -6,33 +6,27 @@ Serve NVIDIA’s **Qwen3.8 Flash Next NVFP4** checkpoint with **TensorFold** on 
 
 ## Benchmarks
 
-All results ran on a resident Flash Next instance on one GB10 Spark using TensorFold 1.2.7. Each decode row used three repetitions, with 256 completion tokens, temperature zero, thinking disabled, and MTP enabled. **Aggregate** is whole-batch wall throughput. **Per request** is the median engine decode rate. **TTFT** in these tables means client time to first nonempty streamed text.
+All results ran on a resident Flash Next instance on one GB10 Spark using TensorFold 1.2.7. Each decode row used three repetitions, with 58–72 input tokens, 256 completion tokens, temperature zero, thinking disabled, and MTP enabled. **Aggregate** is whole-batch wall throughput. **Per request** is the median engine decode rate. **TTFT** in these tables means client time to first nonempty streamed text.
 
 ### Decode, prose
 
-| Concurrent requests | Aggregate | Per request | TTFT | RAM left | Δ RAM vs prior |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 49.8 tok/s | 51.3 tok/s | 166 ms | 31.44 GiB | +128.7 MiB |
-| 2 | 71.6 tok/s | 36.9 tok/s | 253 ms | 31.35 GiB | -102.9 MiB |
-| 3 | 86.8 tok/s | 32.1 tok/s | 337 ms | 31.34 GiB | +27.7 MiB |
-| 4 | 105.9 tok/s | 28.4 tok/s | 419 ms | 31.31 GiB | -7.9 MiB |
-| 5 | 112.5 tok/s | 24.0 tok/s | 509 ms | 31.10 GiB | +407.3 MiB |
+| Concurrent requests | Aggregate | Per request | TTFT |
+| ---: | ---: | ---: | ---: |
+| 1 | 49.8 tok/s | 51.3 tok/s | 166 ms |
+| 2 | 71.6 tok/s | 36.9 tok/s | 253 ms |
+| 3 | 86.8 tok/s | 32.1 tok/s | 337 ms |
+| 4 | 105.9 tok/s | 28.4 tok/s | 419 ms |
+| 5 | 112.5 tok/s | 24.0 tok/s | 509 ms |
 
 ### Decode, code
 
-| Concurrent requests | Aggregate | Per request | TTFT | RAM left | Δ RAM vs prior |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 80.5 tok/s | 83.9 tok/s | 153 ms | 31.34 GiB | +128.7 MiB |
-| 2 | 119.4 tok/s | 63.9 tok/s | 216 ms | 31.83 GiB | +128.8 MiB |
-| 3 | 130.5 tok/s | 52.4 tok/s | 302 ms | 31.27 GiB | -204.6 MiB |
-| 4 | 162.9 tok/s | 44.6 tok/s | 386 ms | 31.26 GiB | +7.9 MiB |
-| 5 | 172.4 tok/s | 38.1 tok/s | 459 ms | 30.86 GiB | +422.5 MiB |
-
-**RAM left** is sampled Linux `MemAvailable` on the unified-memory host. **Δ RAM vs prior** is the change in the median drop from loaded idle, compared with the preceding row. C1 compares with loaded idle. Positive values indicate less headroom. Throughput, latency, and RAM in both decode tables came from the same run, with 58–72 input tokens and 256 output tokens per request.
-
-With five active requests, the median drop from idle was **453 MiB for prose** and **483 MiB for code**. The prose repeats ranged from approximately 0 to 1,054 MiB, and the code repeats ranged from 446 to 484 MiB. The lowest available RAM across the whole run was **30.85 GiB**. Host-wide variation makes the smaller steps unsuitable as fixed per-request costs.
-
-For capacity planning, the running TensorFold startup log reported **4.83 GiB per configured 262,144-token slot**. The five slots account for about **24.2 GiB of the engine’s startup KV budget**. The decode tables measure short requests on that already-running five-slot profile. [RAM methodology](docs/benchmarking.md#ram-under-decode-load)
+| Concurrent requests | Aggregate | Per request | TTFT |
+| ---: | ---: | ---: | ---: |
+| 1 | 80.5 tok/s | 83.9 tok/s | 153 ms |
+| 2 | 119.4 tok/s | 63.9 tok/s | 216 ms |
+| 3 | 130.5 tok/s | 52.4 tok/s | 302 ms |
+| 4 | 162.9 tok/s | 44.6 tok/s | 386 ms |
+| 5 | 172.4 tok/s | 38.1 tok/s | 459 ms |
 
 ### Prefill, fresh prompts
 
@@ -48,7 +42,7 @@ For capacity planning, the running TensorFold startup log reported **4.83 GiB pe
 
 The prefill rate divides uncached input tokens by engine prefill time. Each prompt reused two template tokens. All seven runs returned the correct retrieval marker. Five-stream decode and the longest-input check were separate workloads.
 
-[Decode and RAM data](results/decode-memory-2026-11-20.json) · [Earlier decode run](results/full-decode-2026-11-20.json) · [Prefill data](results/full-prefill-2026-11-20.json) · [How to reproduce](docs/benchmarking.md) · [45 archived tuning runs](docs/historical-benchmarks.md)
+[Decode data](results/decode-memory-2026-11-20.json) · [Earlier decode run](results/full-decode-2026-11-20.json) · [Prefill data](results/full-prefill-2026-11-20.json) · [How to reproduce](docs/benchmarking.md) · [45 archived tuning runs](docs/historical-benchmarks.md)
 
 The layout follows [Mia’s performance tables](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold#performance). These results use this repo’s benchmark harness and prompts. Mia's SparkDash tables use a different aggregate calculation and sampling for prose.
 
