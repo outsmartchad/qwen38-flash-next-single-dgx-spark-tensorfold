@@ -10,23 +10,29 @@ All results ran on a resident Flash Next instance on one GB10 Spark using Tensor
 
 ### Decode, prose
 
-| Concurrent requests | Aggregate | Per request | TTFT |
-| ---: | ---: | ---: | ---: |
-| 1 | 45.9 tok/s | 47.0 tok/s | 156 ms |
-| 2 | 67.7 tok/s | 35.9 tok/s | 241 ms |
-| 3 | 86.6 tok/s | 30.9 tok/s | 328 ms |
-| 4 | 103.4 tok/s | 27.1 tok/s | 413 ms |
-| 5 | 106.7 tok/s | 23.3 tok/s | 492 ms |
+| Concurrent requests | Aggregate | Per request | TTFT | RAM left | Δ RAM vs prior |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 49.8 tok/s | 51.3 tok/s | 166 ms | 31.44 GiB | +128.7 MiB |
+| 2 | 71.6 tok/s | 36.9 tok/s | 253 ms | 31.35 GiB | -102.9 MiB |
+| 3 | 86.8 tok/s | 32.1 tok/s | 337 ms | 31.34 GiB | +27.7 MiB |
+| 4 | 105.9 tok/s | 28.4 tok/s | 419 ms | 31.31 GiB | -7.9 MiB |
+| 5 | 112.5 tok/s | 24.0 tok/s | 509 ms | 31.10 GiB | +407.3 MiB |
 
 ### Decode, code
 
-| Concurrent requests | Aggregate | Per request | TTFT |
-| ---: | ---: | ---: | ---: |
-| 1 | 81.0 tok/s | 84.4 tok/s | 140 ms |
-| 2 | 111.9 tok/s | 61.3 tok/s | 222 ms |
-| 3 | 137.4 tok/s | 50.0 tok/s | 301 ms |
-| 4 | 160.1 tok/s | 44.2 tok/s | 379 ms |
-| 5 | 164.2 tok/s | 36.6 tok/s | 458 ms |
+| Concurrent requests | Aggregate | Per request | TTFT | RAM left | Δ RAM vs prior |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 80.5 tok/s | 83.9 tok/s | 153 ms | 31.34 GiB | +128.7 MiB |
+| 2 | 119.4 tok/s | 63.9 tok/s | 216 ms | 31.83 GiB | +128.8 MiB |
+| 3 | 130.5 tok/s | 52.4 tok/s | 302 ms | 31.27 GiB | -204.6 MiB |
+| 4 | 162.9 tok/s | 44.6 tok/s | 386 ms | 31.26 GiB | +7.9 MiB |
+| 5 | 172.4 tok/s | 38.1 tok/s | 459 ms | 30.86 GiB | +422.5 MiB |
+
+**RAM left** is sampled Linux `MemAvailable` on the unified-memory host. **Δ RAM vs prior** is the change in the median drop from loaded idle, compared with the preceding row. C1 compares with loaded idle. Positive values indicate less headroom. Throughput, latency, and RAM in both decode tables came from the same run, with 58–72 input tokens and 256 output tokens per request.
+
+With five active requests, the median drop from idle was **453 MiB for prose** and **483 MiB for code**. The prose repeats ranged from approximately 0 to 1,054 MiB, and the code repeats ranged from 446 to 484 MiB. The lowest available RAM across the whole run was **30.85 GiB**. Host-wide variation makes the smaller steps unsuitable as fixed per-request costs.
+
+For capacity planning, the running TensorFold startup log reported **4.83 GiB per configured 262,144-token slot**. The five slots account for about **24.2 GiB of the engine’s startup KV budget**. The decode tables measure short requests on that already-running five-slot profile. [RAM methodology](docs/benchmarking.md#ram-under-decode-load)
 
 ### Prefill, fresh prompts
 
@@ -42,7 +48,7 @@ All results ran on a resident Flash Next instance on one GB10 Spark using Tensor
 
 The prefill rate divides uncached input tokens by engine prefill time. Each prompt reused two template tokens. All seven runs returned the correct retrieval marker. Five-stream decode and the longest-input check were separate workloads.
 
-[Decode data](results/full-decode-2026-11-20.json) · [Prefill data](results/full-prefill-2026-11-20.json) · [How to reproduce](docs/benchmarking.md) · [45 archived tuning runs](docs/historical-benchmarks.md)
+[Decode and RAM data](results/decode-memory-2026-11-20.json) · [Earlier decode run](results/full-decode-2026-11-20.json) · [Prefill data](results/full-prefill-2026-11-20.json) · [How to reproduce](docs/benchmarking.md) · [45 archived tuning runs](docs/historical-benchmarks.md)
 
 The layout follows [Mia’s performance tables](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold#performance). These results use this repo’s benchmark harness and prompts. Mia's SparkDash tables use a different aggregate calculation and sampling for prose.
 

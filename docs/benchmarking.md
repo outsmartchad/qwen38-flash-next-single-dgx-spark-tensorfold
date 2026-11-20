@@ -9,6 +9,9 @@ python3 bin/benchmark.py --profile standard --seed 2026112002 --output standard.
 # The publication matrix, run sequentially on the same resident server.
 python3 bin/benchmark.py --profile full-decode --seed 2026112031 --output full-decode.json
 python3 bin/benchmark.py --profile full-prefill --seed 2026112032 --output full-prefill.json
+
+# Repeat the decode matrix while recording RAM on the Spark itself.
+python3 bin/benchmark.py --profile full-decode --seed 2026112041 --sample-memory --output decode-memory.json
 ```
 
 The `quick` profile covers one and five concurrent requests and approximately 4K input tokens. `standard` covers one, three, and five requests plus approximately 4K, 32K, and 128K inputs. `long` adds approximately 200K. Concurrency runs generate up to 256 tokens per short request. The long inputs run one at a time and check that the returned marker matches exactly. The script uses the server’s tokenizer and confirms its count against completion usage.
@@ -29,6 +32,14 @@ Keep this recipe’s one-slot results, five-short-stream throughput, and single-
 
 The published [running profile](../results/running-profile.json) identifies the hardware and startup settings. The [native media smoke](../results/native-media-smoke.json) measures the elapsed time of single image and video correctness checks. Media times include request processing, and timestamp accuracy depends on frame sampling.
 
+## RAM under decode load
+
+With `--sample-memory`, the benchmark samples Linux `/proc/meminfo` on the Spark about every 50 ms. Each batch uses 20 samples over the preceding second for its idle baseline, with Flash Next already loaded. **RAM left** is the median across repeats of each batch’s minimum `MemAvailable`. **Extra RAM** is the median drop from each batch’s own idle median to its minimum while running. **Δ vs prior** subtracts the extra RAM in the preceding concurrency row, with loaded idle as the baseline for one request.
+
+`MemAvailable` estimates system-wide headroom on the unified-memory host. It includes the effects of Linux reclaimable caches and concurrent system activity. Small or negative steps can reflect variation between samples. The data also records `SwapFree` to flag changes. Run without other inference clients or media generation, and assess long contexts and image/video workloads separately.
+
+The running TensorFold log reported **4.83 GiB per configured stream slot** with a **262,144-token window**, FP8 main KV and MTP enabled. The five configured windows account for about **24.2 GiB of the engine’s startup KV budget**. Adding a configured slot and sending an extra short request to an existing slot are different measurements. [Pinned upstream KV and memory notes](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold/blob/b956dba8a468f1cf376d60bbbd9b9ed51ff2f0a9/README.md#kv-and-memory)
+
 ## Upstream API checks
 
 After the performance profiles, run the same targeted upstream scripts from the pinned Mia checkout. The commands below use a Spark shell and its loopback port. They send synthetic API requests.
@@ -48,7 +59,8 @@ The context check validates admission at the configured prompt-plus-reply budget
 
 ## Raw runs
 
-- [Full prose and code decode](../results/full-decode-2026-11-20.json)
+- [Full prose and code decode with RAM sampling](../results/decode-memory-2026-11-20.json)
+- [Earlier full decode run](../results/full-decode-2026-11-20.json)
 - [Full prefill and exact retrieval](../results/full-prefill-2026-11-20.json)
 - [Pinned upstream validation](../results/validation-2026-11-20.json)
 - [Quick inventory](../results/quick-2026-11-20.json) and [standard inventory](../results/standard-2026-11-20.json)

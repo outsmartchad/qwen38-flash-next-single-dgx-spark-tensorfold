@@ -26,6 +26,8 @@ PROFILES = {
 }
 TEMPLATE = {"enable_thinking": False}
 COMPLETION_BUDGET = 256
+MEMORY_SAMPLE_SECONDS = 0.05
+MEMORY_IDLE_SAMPLES = 20
 STREAM_LINE_LIMIT = 256 * 1024
 REGIONS = ("cedar", "bay", "canyon", "delta", "field", "grove", "hill", "lake")
 PROSE_TOPICS = ("hash tables", "B-trees", "ring buffers", "skip lists", "Bloom filters")
@@ -197,11 +199,47 @@ def decode_batch(port, seed, streams, timeout, workload="inventory"):
             "requests": results}
 
 
-def benchmark(port, profile, seed, timeout):
+def host_memory():
+    meminfo = dict(line.split(":", 1) for line in Path("/proc/meminfo").read_text().splitlines())
+    return {field: int(meminfo[field].split()[0]) for field in ("MemTotal", "MemAvailable", "SwapFree")}
+
+
+def decode_batch_with_memory(port, seed, streams, timeout, workload):
+    idle = []
+    for _ in range(MEMORY_IDLE_SAMPLES):
+        idle.append(host_memory())
+        time.sleep(MEMORY_SAMPLE_SECONDS)
+    active = []
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        future = worker.submit(decode_batch, port, seed, streams, timeout, workload)
+        while not future.done():
+            active.append(host_memory())
+            time.sleep(MEMORY_SAMPLE_SECONDS)
+        result = future.result()
+    if not active:
+        raise ApiError("decode finished before any host memory samples were captured")
+    available_idle = [sample["MemAvailable"] for sample in idle]
+    available_active = [sample["MemAvailable"] for sample in active]
+    result["host_memory"] = {
+        "linux_memtotal_kib": idle[0]["MemTotal"],
+        "idle_samples": len(idle),
+        "idle_memavailable_median_kib": statistics.median(available_idle),
+        "idle_memavailable_min_kib": min(available_idle),
+        "idle_memavailable_max_kib": max(available_idle),
+        "batch_samples": len(active),
+        "batch_memavailable_min_kib": min(available_active),
+        "idle_swapfree_kib": idle[-1]["SwapFree"],
+        "batch_swapfree_min_kib": min(sample["SwapFree"] for sample in active),
+    }
+    return result
+
+
+def benchmark(port, profile, seed, timeout, sample_memory=False):
     require_model(port)
     stream_counts, prompt_targets = PROFILES[profile]
     stream_completion(port, output_prompt(seed, -1), 16, timeout)
     decode_rows = []
+    run_decode = decode_batch_with_memory if sample_memory else decode_batch
     workloads = ("prose", "code") if profile == "full-decode" else ("inventory",)
     repeats = 3 if profile == "full-decode" else 1
     for workload_index, workload in enumerate(workloads):
@@ -210,7 +248,7 @@ def benchmark(port, profile, seed, timeout):
                 print(f"{workload}: C{streams}, repeat {repetition + 1}/{repeats}",
                       file=sys.stderr, flush=True)
                 trial_seed = seed + streams * 1009 + workload_index * 100000 + repetition * 10000
-                batch = decode_batch(port, trial_seed, streams, timeout, workload)
+                batch = run_decode(port, trial_seed, streams, timeout, workload)
                 batch["repetition"] = repetition + 1
                 decode_rows.append(batch)
     prefill_rows = []
@@ -226,7 +264,7 @@ def benchmark(port, profile, seed, timeout):
         result.update(target_prompt_tokens=target, tokenized_prompt_tokens=tokenized,
                       audit_code_matched=recovered)
         prefill_rows.append(result)
-    return {
+    results = {
         "schema_version": 1, "endpoint": f"http://{HOST}:{port}/v1", "model": MODEL,
         "profile": profile, "seed": seed, "request_timeout_seconds": timeout,
         "thinking": False, "temperature": 0, "decode_max_tokens": COMPLETION_BUDGET,
@@ -241,6 +279,13 @@ def benchmark(port, profile, seed, timeout):
         ],
         "completion_batches": decode_rows, "long_prompts": prefill_rows,
     }
+    if sample_memory:
+        results["host_memory_sampling"] = {
+            "source": "/proc/meminfo on the server host",
+            "target_sampling_interval_seconds": MEMORY_SAMPLE_SECONDS,
+            "idle_samples_per_batch": MEMORY_IDLE_SAMPLES,
+        }
+    return results
 
 
 def main():
@@ -249,15 +294,19 @@ def main():
     parser.add_argument("--seed", type=int, default=20261120)
     parser.add_argument("--port", type=port_number, default=DEFAULT_PORT)
     parser.add_argument("--timeout", type=int, default=600, help="seconds per request, 1–1800")
+    parser.add_argument("--sample-memory", action="store_true",
+                        help="sample Linux host RAM during each decode batch")
     parser.add_argument("--output", type=Path, help="save JSON to a new file, otherwise print it")
     args = parser.parse_args()
     if not 1 <= args.timeout <= 1800:
         parser.error("--timeout must be between 1 and 1800 seconds")
+    if args.sample_memory and not PROFILES[args.profile][0]:
+        parser.error("--sample-memory requires a decode workload")
     if args.output and args.output.exists():
         parser.error(f"output already exists: {args.output}")
     try:
-        results = json.dumps(benchmark(args.port, args.profile, args.seed, args.timeout),
-                             indent=2, allow_nan=False)
+        measurements = benchmark(args.port, args.profile, args.seed, args.timeout, args.sample_memory)
+        results = json.dumps(measurements, indent=2, allow_nan=False)
         if args.output:
             with args.output.open("x") as destination:
                 destination.write(results + "\n")
