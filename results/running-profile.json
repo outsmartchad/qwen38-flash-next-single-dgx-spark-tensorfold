@@ -1,0 +1,46 @@
+{
+  "observed_date": "2026-11-20",
+  "hardware": {
+    "system": "NVIDIA DGX Spark",
+    "device_count": 1,
+    "gpu": "NVIDIA GB10",
+    "arch": "aarch64",
+    "unified_memory_gb_advertised": 128,
+    "linux_memtotal_gib": 121.69,
+    "linux_memavailable_gib_running_idle_snapshot": 32.5
+  },
+  "host_software": {
+    "os": "Ubuntu 24.04.5 LTS",
+    "kernel": "7.0.0-1025-nvidia",
+    "nvidia_driver": "580.178.04",
+    "docker_server": "29.6.2"
+  },
+  "pinned_inputs": {
+    "mia_recipe_commit": "b956dba8a468f1cf376d60bbbd9b9ed51ff2f0a9",
+    "tensorfold_commit": "93a2e93ecebff8aa52b88e58c5dd222516e69c5f",
+    "nvidia_base_image_digest": "nvcr.io/nvidia/pytorch@sha256:2140e699b3beaf7f96a0081fd9c9406bc3832b435cdb60dfa2d261f7d2f34a1c",
+    "checkpoint_id": "nvidia/Qwen3.8-Flash-Next-FP4-Local",
+    "checkpoint_revision": "b9ce18a6887e18c089fdea8509a33e63429a3300"
+  },
+  "running_image": {
+    "local_tag": "tensorfold-qwen38:v1.2.7-93a2e93",
+    "local_image_id": "sha256:6ea0b0697dbaeaeb33b5bbfc44b5150fcd2b5ff798ebcb7342556bb9ad722513"
+  },
+  "serving": {
+    "bind": "127.0.0.1:18889",
+    "model_id": "Qwen3.8-Flash-Next",
+    "configured_context_tokens": 262144,
+    "configured_slots": 5,
+    "default_max_output_tokens": 32768,
+    "kv_cache": "fp8",
+    "vision": true,
+    "video": true,
+    "media_token_budget": 16384,
+    "memory_reserve_gib": 9,
+    "mtp_max_drafts": 6,
+    "mtp_confidence_setting": -0.4,
+    "mtp_shared_drafts": 0,
+    "default_thinking": true
+  },
+  "test_scope": "Existing running deployment. No cold rebuild performed for this publication."
+}

@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "endpoint": "http://127.0.0.1:18889/v1",
+  "model": "Qwen3.8-Flash-Next",
+  "profile": "quick",
+  "seed": 2026112001,
+  "request_timeout_seconds": 60,
+  "thinking": false,
+  "temperature": 0,
+  "decode_max_tokens": 256,
+  "notes": [
+    "Client elapsed time includes loopback HTTP, scheduling, prefill, decode, and final usage.",
+    "First content is the first nonempty streamed text fragment.",
+    "Batch client rate is all reported completion tokens divided by measured batch wall time.",
+    "Engine counters are nullable. Prefill rate excludes reported cached prompt tokens.",
+    "A repeated seed may hit prompt cache. Use a new seed for a fresh run.",
+    "Profiles make one measurement at each point with synthetic text and representative concurrency."
+  ],
+  "completion_batches": [
+    {
+      "streams": 1,
+      "batch_elapsed_seconds": 5.5364841550035635,
+      "batch_client_completion_tokens_per_second": 46.238730723837,
+      "median_first_content_seconds": 0.15832708499510773,
+      "requests": [
+        {
+          "prompt_sha256": "67358dc241a7a6098ea301bf8c8373743fb3f1f36f514dbf785ac76e86a12cbf",
+          "prompt_tokens": 75,
+          "completion_tokens": 256,
+          "cached_prompt_tokens": 2,
+          "finish_reason": "length",
+          "elapsed_seconds": 5.536094607996347,
+          "first_content_seconds": 0.15832708499510773,
+          "last_content_seconds": 5.535715635996894,
+          "client_completion_tokens_per_second": 46.24198430970328,
+          "engine_prefill_seconds": 0.156639472,
+          "engine_decode_seconds": null,
+          "engine_decode_tokens_per_second": 47.415872147579044,
+          "uncached_prompt_tokens_per_second": 466.03834313231084
+        }
+      ]
+    },
+    {
+      "streams": 5,
+      "batch_elapsed_seconds": 9.428890590002993,
+      "batch_client_completion_tokens_per_second": 135.75298045743827,
+      "median_first_content_seconds": 0.5356978030031314,
+      "requests": [
+        {
+          "prompt_sha256": "c288fd59c563b89c293d3137352fbd76221c0a739a11a5307adeed65c02851e0",
+          "prompt_tokens": 76,
+          "completion_tokens": 256,
+          "cached_prompt_tokens": 2,
+          "finish_reason": "length",
+          "elapsed_seconds": 9.076572956997552,
+          "first_content_seconds": 0.7205185269995127,
+          "last_content_seconds": 9.076399566998589,
+          "client_completion_tokens_per_second": 28.204477748690127,
+          "engine_prefill_seconds": 0.556368997,
+          "engine_decode_seconds": null,
+          "engine_decode_tokens_per_second": 30.51536838072352,
+          "uncached_prompt_tokens_per_second": 133.00525442469973
+        },
+        {
+          "prompt_sha256": "d85d69fca384c8666533d0c38386ac5c254cb038c7db3192db227239b97acf0e",
+          "prompt_tokens": 78,
+          "completion_tokens": 256,
+          "cached_prompt_tokens": 2,
+          "finish_reason": "length",
+          "elapsed_seconds": 9.02034260200162,
+          "first_content_seconds": 0.9042548490033369,
+          "last_content_seconds": 9.020237194999936,
+          "client_completion_tokens_per_second": 28.38029676868298,
+          "engine_prefill_seconds": 0.739922697,
+          "engine_decode_seconds": null,
+          "engine_decode_tokens_per_second": 31.416961673548695,
+          "uncached_prompt_tokens_per_second": 102.7134325087476
+        },
+        {
+          "prompt_sha256": "e3c8902d4d9662f16bb9a9cf06f922dec2acc573555e544bb2d84552605f3172",
+          "prompt_tokens": 74,
+          "completion_tokens": 256,
+          "cached_prompt_tokens": 2,
+          "finish_reason": "length",
+          "elapsed_seconds": 8.304783002997283,
+          "first_content_seconds": 0.35163819099398097,
+          "last_content_seconds": 8.304293936998874,
+          "client_completion_tokens_per_second": 30.825609760978335,
+          "engine_prefill_seconds": 0.178418048,
+          "engine_decode_seconds": null,
+          "engine_decode_tokens_per_second": 32.06195907455509,
+          "uncached_prompt_tokens_per_second": 403.546618781526
+        },
+        {
+          "prompt_sha256": "f5001b2ebddfda68387b3afd9cd1e5451a9fe79032893b9c533418186b38dbfc",
+          "prompt_tokens": 76,
+          "completion_tokens": 256,
+          "cached_prompt_tokens": 2,
+          "finish_reason": "length",
+          "elapsed_seconds": 9.42711840300035,
+          "first_content_seconds": 0.5356978030031314,
+          "last_content_seconds": 9.426968179999676,
+          "client_completion_tokens_per_second": 27.155700083126504,
+          "engine_prefill_seconds": 0.371737887,
+          "engine_decode_seconds": null,
+          "engine_decode_tokens_per_second": 28.676777334990415,
+          "uncached_prompt_tokens_per_second": 199.064993340321
+        },
+        {
+          "prompt_sha256": "c70bd595229e4d7484e53c869805f216b6ab8370c5178c3f446907a77a2e22ed",
+          "prompt_tokens": 78,
+          "completion_tokens": 256,
+          "cached_prompt_tokens": 2,
+          "finish_reason": "length",
+          "elapsed_seconds": 9.020096796004509,
+          "first_content_seconds": 0.16086958500090986,
+          "last_content_seconds": 9.01973699300288,
+          "client_completion_tokens_per_second": 28.38107015807151,
+          "engine_prefill_seconds": 0.158202689,
+          "engine_decode_seconds": null,
+          "engine_decode_tokens_per_second": 28.782629956696322,
+          "uncached_prompt_tokens_per_second": 480.3963856771107
+        }
+      ]
+    }
+  ],
+  "long_prompts": [
+    {
+      "prompt_sha256": "f1060224e6342ce274da1a3acb5442de52c10822ce537cdd941f58455e7d83e9",
+      "prompt_tokens": 4080,
+      "completion_tokens": 11,
+      "cached_prompt_tokens": 2,
+      "finish_reason": "stop",
+      "elapsed_seconds": 1.9374156810008571,
+      "first_content_seconds": 1.7908813429967267,
+      "last_content_seconds": 1.9373018100013724,
+      "client_completion_tokens_per_second": 5.67766644394943,
+      "engine_prefill_seconds": 1.789091252,
+      "engine_decode_seconds": null,
+      "engine_decode_tokens_per_second": 67.94858189474974,
+      "uncached_prompt_tokens_per_second": 2279.3694818200365,
+      "target_prompt_tokens": 4096,
+      "tokenized_prompt_tokens": 4080,
+      "audit_code_matched": true
+    }
+  ]
+}

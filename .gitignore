@@ -1,0 +1,15 @@
+.env
+.env.*
+*.pem
+*.key
+*.log
+__pycache__/
+.venv*/
+.cache/
+data/
+weights/
+*.safetensors
+*.gguf
+/quick.json
+/standard.json
+/long.json

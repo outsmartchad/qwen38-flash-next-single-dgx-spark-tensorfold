@@ -1,0 +1,31 @@
+{
+  "model": "Qwen3.8-Flash-Next",
+  "checks": [
+    {
+      "fixture": "red-square.png",
+      "content_part": "image_url",
+      "colors": [
+        "red"
+      ],
+      "elapsed_s": 0.346,
+      "usage": {
+        "prompt_tokens": 110,
+        "completion_tokens": 2
+      }
+    },
+    {
+      "fixture": "color-cuts.mp4",
+      "content_part": "video_url",
+      "colors": [
+        "red",
+        "blue",
+        "green"
+      ],
+      "elapsed_s": 1.007,
+      "usage": {
+        "prompt_tokens": 1136,
+        "completion_tokens": 6
+      }
+    }
+  ]
+}
