@@ -6,27 +6,43 @@ Serve NVIDIA’s **Qwen3.8 Flash Next NVFP4** checkpoint with **TensorFold** on 
 
 ## Benchmarks
 
-All results ran on a resident Flash Next instance on one GB10 Spark using TensorFold 1.2.7. Each decode row used three repetitions, with 58–72 input tokens, 256 completion tokens, temperature zero, thinking disabled, and MTP enabled. **Aggregate** is whole-batch wall throughput. **Per request** is the median engine decode rate. **TTFT** in these tables means client time to first nonempty streamed text.
+All tests ran on a resident Flash Next instance on one GB10 Spark using TensorFold 1.2.7 with MTP enabled. Each decode row shows the fastest aggregate run out of three at that concurrency. **Per request** and **TTFT** are medians across the streams in that same run.
 
-### Decode, prose
+### Decode, prose (thinking on)
 
-| Concurrent requests | Aggregate | Per request | TTFT |
+Direct loopback requests used the SparkDash hash-map prompt, 400 output tokens per request, temperature 0.7, top-p 1, and top-k 20. **Aggregate** measures decode across the shared streaming window. **Per request** is the measured streaming decode rate. TTFT includes the first reasoning token. The one- and five-stream rows are the results used in the showcase card.
+
+| Concurrent requests | Best aggregate | Per request | TTFT |
 | ---: | ---: | ---: | ---: |
-| 1 | 49.8 tok/s | 51.3 tok/s | 166 ms |
-| 2 | 71.6 tok/s | 36.9 tok/s | 253 ms |
-| 3 | 86.8 tok/s | 32.1 tok/s | 337 ms |
-| 4 | 105.9 tok/s | 28.4 tok/s | 419 ms |
-| 5 | 112.5 tok/s | 24.0 tok/s | 509 ms |
+| 1 | 56.0 tok/s | 56.0 tok/s | 63 ms |
+| 2 | 82.6 tok/s | 44.2 tok/s | 90 ms |
+| 3 | 102.3 tok/s | 35.6 tok/s | 120 ms |
+| 4 | 119.9 tok/s | 31.5 tok/s | 150 ms |
+| 5 | 125.6 tok/s | 25.8 tok/s | 181 ms |
 
-### Decode, code
+[Thinking-on prose data](results/decode-prose-thinking-on-2026-11-20.json) · [Methodology](docs/benchmarking.md#thinking-on-prose)
 
-| Concurrent requests | Aggregate | Per request | TTFT |
+### Decode, prose (thinking off)
+
+The thinking-off tables use fresh synthetic prompts from the published decode sweep, with 58–72 input tokens, 256 output tokens, and temperature zero. **Aggregate** is whole-batch wall throughput. **Per request** uses the engine decode counter. TTFT starts at the request and ends at the first streamed answer text.
+
+| Concurrent requests | Best aggregate | Per request | TTFT |
 | ---: | ---: | ---: | ---: |
-| 1 | 80.5 tok/s | 83.9 tok/s | 153 ms |
-| 2 | 119.4 tok/s | 63.9 tok/s | 216 ms |
-| 3 | 130.5 tok/s | 52.4 tok/s | 302 ms |
-| 4 | 162.9 tok/s | 44.6 tok/s | 386 ms |
-| 5 | 172.4 tok/s | 38.1 tok/s | 459 ms |
+| 1 | 50.1 tok/s | 51.6 tok/s | 166 ms |
+| 2 | 71.9 tok/s | 37.3 tok/s | 252 ms |
+| 3 | 90.8 tok/s | 32.2 tok/s | 337 ms |
+| 4 | 108.2 tok/s | 28.5 tok/s | 412 ms |
+| 5 | 115.6 tok/s | 24.7 tok/s | 509 ms |
+
+### Decode, code (thinking off)
+
+| Concurrent requests | Best aggregate | Per request | TTFT |
+| ---: | ---: | ---: | ---: |
+| 1 | 81.5 tok/s | 85.7 tok/s | 162 ms |
+| 2 | 119.7 tok/s | 65.1 tok/s | 216 ms |
+| 3 | 145.7 tok/s | 52.6 tok/s | 303 ms |
+| 4 | 166.3 tok/s | 45.6 tok/s | 386 ms |
+| 5 | 174.5 tok/s | 37.9 tok/s | 458 ms |
 
 ### Prefill, fresh prompts
 
@@ -44,7 +60,7 @@ The prefill rate divides uncached input tokens by engine prefill time. Each prom
 
 [Decode data](results/decode-memory-2026-11-20.json) · [Earlier decode run](results/full-decode-2026-11-20.json) · [Prefill data](results/full-prefill-2026-11-20.json) · [How to reproduce](docs/benchmarking.md) · [45 archived tuning runs](docs/historical-benchmarks.md)
 
-The layout follows [Mia’s performance tables](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold#performance). These results use this repo’s benchmark harness and prompts. Mia's SparkDash tables use a different aggregate calculation and sampling for prose.
+The layout follows [Mia’s performance tables](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold#performance). Mia’s SparkDash headline figures were measured on the earlier TensorFold 1.1.4 build.
 
 ## Images and video
 

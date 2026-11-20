@@ -18,7 +18,7 @@ The `quick` profile covers one and five concurrent requests and approximately 4K
 
 `full-decode` runs separate prose tutorials and Python implementations at C1–C5, with three seeded repetitions per point and different prompts for simultaneous requests. `full-prefill` measures 4K, 8K, 16K, 32K, 64K, 128K, and approximately 200,000 input tokens once each. It reports each retrieval outcome with the timing so a miss stays visible. Run the two profiles sequentially to avoid workload contention.
 
-All profiles request thinking disabled and temperature zero. MTP uses the server’s launch settings. For fresh-prompt runs, choose a new seed. Using the same seed can reuse a cached prefix. The script reports cached input tokens when available. Run with other inference clients idle and repeat each workload with new seeds before reporting aggregate statistics.
+The `bin/benchmark.py` profiles request thinking disabled and temperature zero. MTP uses the server’s launch settings. For fresh-prompt runs, choose a new seed. Using the same seed can reuse a cached prefix. The script reports cached input tokens when available. Run with other inference clients idle and repeat each workload with new seeds before reporting aggregate statistics.
 
 ## Fields and interpretation
 
@@ -31,6 +31,16 @@ All profiles request thinking disabled and temperature zero. MTP uses the server
 Keep this recipe’s one-slot results, five-short-stream throughput, and single-request long-context results distinct. To establish a concurrent long-context capacity, run the relevant combined workload and retain admission errors, per-request token budgets, and shared wall throughput.
 
 The published [running profile](../results/running-profile.json) identifies the hardware and startup settings. The [native media smoke](../results/native-media-smoke.json) measures the elapsed time of single image and video correctness checks. Media times include request processing, and timestamp accuracy depends on frame sampling.
+
+## Thinking-on prose
+
+The [thinking-on results](../results/decode-prose-thinking-on-2026-11-20.json) use direct streaming requests to the same local TensorFold server in benchmark mode, with TensorFold as the only GPU compute process. Use the [SparkDash hash-map prompt](https://github.com/MiaAI-Lab/sparkDash/blob/91a3e46d7cbadf6daf4d53b5e7ae34e519f353ca/src/shared/llmPrompts.js#L53-L56). At concurrency two and above, prefix each prompt on its own line with `Request ID: decode-N`, where `N` starts at 1.
+
+Warm the server with a 32-token completion, then send three concurrent waves at each request count from one through five. Use `temperature: 0.7`, `top_p: 1`, `top_k: 20`, and `chat_template_kwargs.enable_thinking: true`. Set `max_tokens` and `min_tokens` to 400, `ignore_eos: true`, and request stream usage. Check the returned completion count for every request. The raw results record reused prompt tokens for each wave.
+
+For each stream, divide completion tokens minus one by the interval from its first streamed content to its last. For aggregate decode, sum completion tokens minus one across streams and divide by the interval from the earliest first content to the latest last content. Both intervals include streamed reasoning. TTFT is the time from request start to the first streamed reasoning or answer token.
+
+At each concurrency, the README selects the highest aggregate decode rate of the three waves. The per-request decode rate and TTFT are medians across the streams in that selected wave. For the thinking-off tables, the same selection rule uses the highest whole-batch wall rate in the [published decode sweep](../results/decode-memory-2026-11-20.json).
 
 ## RAM under decode load
 
