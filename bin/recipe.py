@@ -191,7 +191,8 @@ class Recipe:
             raise RecipeError("expected exactly one NVIDIA GB10 GPU")
         runtimes = json.loads(self.run(["docker", "info", "--format", "{{json .Runtimes}}"]))
         if not isinstance(runtimes, dict) or "nvidia" not in runtimes:
-            raise RecipeError("the local Docker daemon does not list the nvidia runtime")
+            print("Docker does not list a runtime named nvidia. The launcher uses --gpus all. "
+                  "See docs/reproduce.md for an optional GPU container check.", file=sys.stderr)
         memory = {}
         for row in Path("/proc/meminfo").read_text().splitlines():
             key, _, value = row.partition(":")

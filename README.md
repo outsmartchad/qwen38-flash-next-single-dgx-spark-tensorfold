@@ -29,7 +29,7 @@ python3 tools/multimodal_smoke.py
 python3 bin/recipe.py stop
 ```
 
-The published benchmarks and native media checks used a resident deployment on our Spark. The wrapper has been exercised with a pinned source fetch, an upstream command dry run, and local tests. A fresh end-to-end build and launch through the public wrapper remains unverified. [What the validation covered](results/README.md)
+On November 22, 2026, a fresh clone built the TensorFold image, staged the pinned weights in an empty cache, and answered chat on one DGX Spark. The benchmark tables and native media checks below come from earlier resident runs. [What the validation covered](results/README.md)
 
 ## Benchmarks
 

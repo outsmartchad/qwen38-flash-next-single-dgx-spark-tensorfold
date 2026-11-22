@@ -52,6 +52,22 @@ class BenchmarkProfileTests(unittest.TestCase):
 
 class LaunchTests(unittest.TestCase):
     image_id = "sha256:" + "a" * 64
+
+    def test_preflight_allows_docker_without_a_named_nvidia_runtime(self):
+        with tempfile.TemporaryDirectory() as temp:
+            action = recipe.Recipe(Path(temp), None, 18889)
+            with (patch.object(recipe.platform, "system", return_value="Linux"),
+                  patch.object(recipe.platform, "machine", return_value="aarch64"),
+                  patch.object(recipe.shutil, "which", return_value="/usr/bin/tool"),
+                  patch.object(recipe.Path, "read_text",
+                               return_value="MemTotal: 125829120 kB\nMemAvailable: 115343360 kB\n"),
+                  patch.object(action, "run", side_effect=["5.2", "NVIDIA GB10", '{"runc": {}}', ""]),
+                  contextlib.redirect_stdout(io.StringIO()) as output,
+                  contextlib.redirect_stderr(io.StringIO()) as warnings):
+                action.preflight()
+            self.assertIn("TCP port 18889: free", output.getvalue())
+            self.assertIn("launcher uses --gpus all", warnings.getvalue())
+
     def test_plan_matches_start_and_ignores_parent_launch_settings(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
             "HOST": "0.0.0.0", "CONTEXT": "16", "DOCKER_HOST": "tcp://example.invalid:2375",

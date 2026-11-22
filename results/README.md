@@ -12,6 +12,8 @@ These measurements were collected on one NVIDIA DGX Spark with TensorFold 1.2.7 
 | Engine behavior | Tool calls, context admission, prompt reuse, and greedy parity. [Raw checks](validation-2026-11-20.json) |
 | Historical tuning | 45 exploratory runs across engine and serving variants. [Tables](../docs/historical-benchmarks.md) · [Raw archive](historical-2026-11-19.json) |
 
-The performance and media results come from the resident deployment described in the [running profile](running-profile.json). The public wrapper has a source-fetch check, an upstream dry run, and local tests. A fresh wrapper-only build and launch on Spark remains unverified.
+The performance and media results come from the resident deployment described in the [running profile](running-profile.json).
+
+On November 22, 2026, a fresh checkout built the pinned image and downloaded and verified all 21 weight shards in a dedicated empty cache on one DGX Spark. After the Docker preflight fix, the recipe started the model on `127.0.0.1:18889`. The text smoke returned `SPARK_OK`, the documented unified-memory prompt returned a complete answer, and `stop` removed the test container.
 
 The decode tables use different timing windows across thinking-on and thinking-off modes. Compare the [methodology](../docs/benchmarking.md) before interpreting a throughput change.
