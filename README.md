@@ -2,7 +2,7 @@
 
 Serve NVIDIA’s **Qwen3.8 Flash Next NVFP4** checkpoint with **TensorFold** on one 128 GB DGX Spark. The tested profile keeps the API on localhost and supports chat, native images, and native video in a single model.
 
-[Quick start](#quick-start) · [Reproduce](docs/reproduce.md) · [How it works](docs/how-it-works.md) · [Troubleshooting](docs/troubleshooting.md) · [Results](results/README.md) · [Benchmarks](#benchmarks)
+[How the model works](docs/how-it-works.md) · [Quick start](#quick-start) · [Reproduce](docs/reproduce.md) · [Troubleshooting](docs/troubleshooting.md) · [Results](results/README.md) · [Benchmarks](#benchmarks)
 
 ## Quick start
 
