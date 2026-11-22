@@ -2,7 +2,34 @@
 
 Serve NVIDIA’s **Qwen3.8 Flash Next NVFP4** checkpoint with **TensorFold** on one 128 GB DGX Spark. The tested profile keeps the API on localhost and supports chat, native images, and native video in a single model.
 
-[Benchmarks](#benchmarks) · [Images and video](#images-and-video) · [Hardware and runtime](#hardware-and-runtime) · [Quick start](#quick-start) · [Validation](#validation)
+[Quick start](#quick-start) · [Reproduce](docs/reproduce.md) · [How it works](docs/how-it-works.md) · [Troubleshooting](docs/troubleshooting.md) · [Results](results/README.md) · [Benchmarks](#benchmarks)
+
+## Quick start
+
+Run these commands on **one NVIDIA DGX Spark (GB10, Linux ARM64)**. You need Python 3.9+, Bash 4.4+, Git, curl, Docker Engine with local socket access, and the NVIDIA container runtime. For a fresh install, allow about **160 GiB free disk** and **107 GiB available unified memory** at startup. [Host checklist and storage setup](docs/reproduce.md#before-you-start)
+
+```sh
+git clone https://github.com/outsmartchad/qwen38-flash-next-single-dgx-spark-tensorfold.git &&
+cd qwen38-flash-next-single-dgx-spark-tensorfold &&
+python3 bin/recipe.py preflight &&
+python3 bin/recipe.py fetch &&
+python3 bin/recipe.py prepare &&
+python3 bin/recipe.py start &&
+python3 bin/recipe.py status &&
+python3 bin/recipe.py smoke
+```
+
+The first `prepare` builds the pinned TensorFold image and downloads about 96 GiB of weights. If it is interrupted, rerun `prepare` with the same paths to reuse its caches. When `smoke` reports `Qwen3.8-Flash-Next returned SPARK_OK`, point your OpenAI-compatible client at **`http://127.0.0.1:18889/v1`** and use **`Qwen3.8-Flash-Next`** as the model ID. For a client on another machine, use the [SSH forwarding example](docs/reproduce.md#connect-an-api-client).
+
+```sh
+# Optional image and video check
+python3 tools/multimodal_smoke.py
+
+# Stop the recipe container when you finish, keeping the image and weights
+python3 bin/recipe.py stop
+```
+
+The published benchmarks and native media checks used a resident deployment on our Spark. The wrapper has been exercised with a pinned source fetch, an upstream command dry run, and local tests. A fresh end-to-end build and launch through the public wrapper remains unverified. [What the validation covered](results/README.md)
 
 ## Benchmarks
 
@@ -58,7 +85,7 @@ The thinking-off tables use fresh synthetic prompts from the published decode sw
 
 The prefill rate divides uncached input tokens by engine prefill time. Each prompt reused two template tokens. All seven runs returned the correct retrieval marker. Five-stream decode and the longest-input check were separate workloads.
 
-[Decode data](results/decode-memory-2026-11-20.json) · [Earlier decode run](results/full-decode-2026-11-20.json) · [Prefill data](results/full-prefill-2026-11-20.json) · [How to reproduce](docs/benchmarking.md) · [45 archived tuning runs](docs/historical-benchmarks.md)
+[Decode data](results/decode-memory-2026-11-20.json) · [Earlier decode run](results/full-decode-2026-11-20.json) · [Prefill data](results/full-prefill-2026-11-20.json) · [How to reproduce](docs/reproduce.md#run-the-benchmarks) · [45 archived tuning runs](docs/historical-benchmarks.md)
 
 The layout follows [Mia’s performance tables](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold#performance). Mia’s SparkDash headline figures were measured on the earlier TensorFold 1.1.4 build.
 
@@ -95,45 +122,7 @@ The included PNG and 12-second MP4 returned **red** and **red → blue → green
 - **Checkpoint** — NVIDIA’s NVFP4 quantization-aware distillation checkpoint, approximately 96 GiB on disk. The model and the engine’s FP8 KV cache use separate formats. [Pinned NVIDIA checkpoint](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-FP4-Local/tree/b9ce18a6887e18c089fdea8509a33e63429a3300)
 - **Serving profile** — TensorFold v1.2.7 with Mia’s patches, five configured slots, 262,144 configured context tokens, FP8 KV cache, and MTP with up to six drafts per round. Native images and video are enabled. The server uses a 9 GiB memory reserve. Performance and capacity depend on available unified memory, prompt length, output budget, cache state, and concurrency. [Pinned upstream recipe](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold/tree/b956dba8a468f1cf376d60bbbd9b9ed51ff2f0a9)
 
-Start with a quiet Spark and around **107 GiB of available memory** for this serving profile, as estimated by upstream. Allow roughly **160 GB of free storage** for the checkpoint and build, with space on both the model-cache and Docker filesystems. The model’s boot-time memory must fit in unified memory alongside the OS and other processes. We observed 32.50 GiB of Linux `MemAvailable` after the server was up and idle, a single snapshot rather than a startup or peak measurement. [Upstream requirements](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold/blob/b956dba8a468f1cf376d60bbbd9b9ed51ff2f0a9/README.md#requirements)
-
-## Quick start
-
-Run on the Spark with Linux ARM64, Python 3.9+, Bash 4.4+, Git, curl, Docker Engine and a working NVIDIA container runtime. The wrapper also checks the host utilities it needs. Use SSH to run these commands from another machine.
-
-```sh
-git clone https://github.com/outsmartchad/qwen38-flash-next-single-dgx-spark-tensorfold.git
-cd qwen38-flash-next-single-dgx-spark-tensorfold
-
-python3 bin/recipe.py plan       # show effective inputs and settings
-python3 bin/recipe.py preflight  # check the host
-python3 bin/recipe.py fetch      # check out the pinned Mia source
-python3 bin/recipe.py prepare    # build the image and stage the checkpoint
-python3 bin/recipe.py start
-python3 bin/recipe.py status
-python3 bin/recipe.py smoke
-python3 tools/multimodal_smoke.py
-```
-
-The first build downloads the base image and build inputs and stages the checkpoint. Use the same `--data-dir`, `--hf-cache`, and `--port` options for the lifecycle commands if you override them. `--hf-cache` takes the root of a dedicated Hugging Face cache for public weights. The API defaults to `http://127.0.0.1:18889/v1` and serves model ID `Qwen3.8-Flash-Next`. If another process owns the port, the wrapper refuses the new launch. Avoid loading a second copy just to run the tests. The status and smoke commands can check a compatible server that is already running.
-
-Example request from a Spark shell:
-
-```sh
-curl -fsS --max-time 30 http://127.0.0.1:18889/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"Qwen3.8-Flash-Next","messages":[{"role":"user","content":"Explain unified memory in two sentences."}],"max_tokens":160,"reasoning_effort":"none"}'
-```
-
-To stop an instance launched by this recipe, use `python3 bin/recipe.py stop` with the same port and data directory.
-
-## How the recipe starts the server
-
-`fetch` checks out the pinned Mia recipe. `prepare` uses that checkout to build TensorFold and its five patches against a digest-pinned NVIDIA image and stage the checkpoint. `start` checks the prepared marker, verified image ID, and loopback port before launching the recipe-owned container. `status` and `smoke` can check an already-running compatible endpoint.
-
-The tests above ran on our resident deployment. The launcher passed its tests and upstream dry run. A fresh build and launch through the wrapper remain open.
-
-[Implementation and exact launch settings](bin/recipe.py) · [Observed running profile](results/running-profile.json)
+Start with a quiet Spark and around **107 GiB of available memory** for this serving profile, as estimated by upstream. Allow roughly **160 GiB of free storage** for the checkpoint and build, with space on both the model-cache and Docker filesystems. The model’s boot-time memory must fit in unified memory alongside the OS and other processes. We observed 32.50 GiB of Linux `MemAvailable` after the server was up and idle, a single snapshot rather than a startup or peak measurement. [Upstream requirements](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold/blob/b956dba8a468f1cf376d60bbbd9b9ed51ff2f0a9/README.md#requirements)
 
 ## Validation
 

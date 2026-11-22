@@ -22,10 +22,15 @@ PROFILES = {
     "standard": ((1, 3, 5), (4096, 32768, 131072)),
     "long": ((1, 3, 5), (4096, 32768, 131072, 200000)),
     "full-decode": ((1, 2, 3, 4, 5), ()),
+    "prose-thinking-on": ((1, 2, 3, 4, 5), ()),
     "full-prefill": ((), (4096, 8192, 16384, 32768, 65536, 131072, 200000)),
 }
 TEMPLATE = {"enable_thinking": False}
 COMPLETION_BUDGET = 256
+THINKING_PROSE_BUDGET = 400
+# SparkDash's pinned DECODE_PROSE_PROMPT, linked in docs/benchmarking.md.
+HASH_MAP_PROMPT = ("Write a detailed step-by-step explanation of how a hash map works, "
+                   "including collision handling, resizing, and time complexity. Be thorough.")
 MEMORY_SAMPLE_SECONDS = 0.05
 MEMORY_IDLE_SAMPLES = 20
 STREAM_LINE_LIMIT = 256 * 1024
@@ -106,14 +111,21 @@ def value_from(primary, backup):
     return primary if primary is not None else backup
 
 
-def stream_completion(port, prompt, max_tokens, timeout, barrier=None):
+def stream_completion(port, prompt, max_tokens, timeout, barrier=None, *,
+                      thinking=False, force_length=False):
     payload = {"model": MODEL, "messages": messages(prompt), "max_tokens": max_tokens,
                "temperature": 0, "chat_template_kwargs": TEMPLATE, "stream": True,
                "stream_options": {"include_usage": True}}
+    if thinking:
+        payload.update(temperature=0.7, top_p=1, top_k=20,
+                       chat_template_kwargs={"enable_thinking": True})
+    if force_length:
+        payload.update(min_tokens=max_tokens, ignore_eos=True, stop=[])
     if barrier:
         barrier.wait(timeout=timeout)
     start = time.monotonic()
-    first, last = None, None
+    first, last, first_answer = None, None, None
+    reasoning_seen = False
     pieces = []
     usage, engine = {}, {}
     finish_reason = None
@@ -138,12 +150,20 @@ def stream_completion(port, prompt, max_tokens, timeout, barrier=None):
                 if not isinstance(chunk, dict) or "error" in chunk:
                     raise ApiError(f"unexpected stream event: {data[:200]!r}")
                 for choice in chunk.get("choices") or []:
-                    content = (choice.get("delta") or {}).get("content")
-                    if isinstance(content, str) and content:
+                    delta = choice.get("delta") or {}
+                    answer = delta.get("content")
+                    reasoning = thinking and (delta.get("reasoning_content") or delta.get("reasoning"))
+                    has_answer = isinstance(answer, str) and bool(answer)
+                    has_reasoning = isinstance(reasoning, str) and bool(reasoning)
+                    if has_answer or has_reasoning:
                         last = time.monotonic()
                         if first is None:
                             first = last
-                        pieces.append(content)
+                        reasoning_seen |= has_reasoning
+                    if has_answer:
+                        if first_answer is None:
+                            first_answer = last
+                        pieces.append(answer)
                     if choice.get("finish_reason"):
                         finish_reason = choice["finish_reason"]
                 if isinstance(chunk.get("usage"), dict):
@@ -154,7 +174,7 @@ def stream_completion(port, prompt, max_tokens, timeout, barrier=None):
         raise ApiError(f"stream at {HOST}:{port}: {error}") from error
     end = time.monotonic()
     if first is None or finish_reason not in {"stop", "length"}:
-        raise ApiError("completion stream has no answer text or expected finish reason")
+        raise ApiError("completion stream has no text or expected finish reason")
     details = usage.get("prompt_tokens_details")
     if not isinstance(details, dict):
         details = {}
@@ -171,7 +191,7 @@ def stream_completion(port, prompt, max_tokens, timeout, barrier=None):
                                 positive_number(engine.get("decode_s")))
     if decode is None and decode_seconds is not None:
         decode = output_tokens / decode_seconds
-    return {
+    result = {
         "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
         "prompt_tokens": prompt_tokens, "completion_tokens": output_tokens,
         "cached_prompt_tokens": cached, "finish_reason": finish_reason,
@@ -181,7 +201,14 @@ def stream_completion(port, prompt, max_tokens, timeout, barrier=None):
         "engine_decode_tokens_per_second": decode,
         "uncached_prompt_tokens_per_second": (prompt_tokens - cached) / prefill
         if prefill and cached is not None and 0 <= cached < prompt_tokens else None,
-    }, "".join(pieces)
+    }
+    if thinking:
+        result.update(first_event_time=first, last_event_time=last,
+                      first_answer_seconds=None if first_answer is None else first_answer - start,
+                      reasoning_seen=reasoning_seen)
+    if force_length and output_tokens != max_tokens:
+        raise ApiError(f"expected {max_tokens} output tokens, server reported {output_tokens}")
+    return result, "".join(pieces)
 
 
 def decode_batch(port, seed, streams, timeout, workload="inventory"):
@@ -197,6 +224,70 @@ def decode_batch(port, seed, streams, timeout, workload="inventory"):
             "batch_client_completion_tokens_per_second": sum(row["completion_tokens"] for row in results) / wall,
             "median_first_content_seconds": statistics.median(row["first_content_seconds"] for row in results),
             "requests": results}
+
+
+def prose_wave(port, streams, repeat, timeout):
+    inputs = [HASH_MAP_PROMPT] if streams == 1 else [
+        f"Request ID: decode-{index}\n{HASH_MAP_PROMPT}" for index in range(1, streams + 1)
+    ]
+    barrier = threading.Barrier(streams)
+    with ThreadPoolExecutor(max_workers=streams) as workers:
+        runs = [workers.submit(stream_completion, port, prompt, THINKING_PROSE_BUDGET,
+                               timeout, barrier, thinking=True, force_length=True) for prompt in inputs]
+        results = [run.result()[0] for run in runs]
+    first_events, last_events = [], []
+    requests = []
+    for result in results:
+        first = result["first_event_time"]
+        last = result["last_event_time"]
+        if not result["reasoning_seen"] or last <= first:
+            raise ApiError("stream did not contain timed reasoning and decode events")
+        first_events.append(first)
+        last_events.append(last)
+        requests.append({
+            "completion_tokens": result["completion_tokens"],
+            "prompt_tokens": result["prompt_tokens"],
+            "prompt_sha256": result["prompt_sha256"],
+            "cached_tokens": result["cached_prompt_tokens"],
+            "stream_decode_tok_s": (result["completion_tokens"] - 1) / (last - first),
+            "ttft_any_ms": result["first_content_seconds"] * 1000,
+            "ttft_answer_ms": None if result["first_answer_seconds"] is None
+            else result["first_answer_seconds"] * 1000,
+        })
+    decode_seconds = max(last_events) - min(first_events)
+    generated_after_first = sum(row["completion_tokens"] - 1 for row in requests)
+    return {"streams": streams, "repeat": repeat, "requests": requests,
+            "aggregate_decode_tok_s": generated_after_first / decode_seconds}
+
+
+def thinking_prose_benchmark(port, stream_counts, timeout):
+    stream_completion(port, HASH_MAP_PROMPT, 32, timeout, thinking=True)
+    batches = []
+    best_by_concurrency = []
+    for streams in stream_counts:
+        waves = []
+        for repeat in range(1, 4):
+            print(f"Thinking-on prose, C{streams}, repeat {repeat}/3", file=sys.stderr, flush=True)
+            waves.append(prose_wave(port, streams, repeat, timeout))
+        batches.extend(waves)
+        best = max(waves, key=lambda wave: wave["aggregate_decode_tok_s"])
+        best_by_concurrency.append({
+            "streams": streams, "repeat": best["repeat"],
+            "aggregate_decode_tok_s": best["aggregate_decode_tok_s"],
+            "median_stream_decode_tok_s": statistics.median(
+                row["stream_decode_tok_s"] for row in best["requests"]
+            ),
+            "median_ttft_any_ms": statistics.median(row["ttft_any_ms"] for row in best["requests"]),
+        })
+    return {
+        "schema_version": 1, "profile": "prose-thinking-on",
+        "endpoint": f"http://{HOST}:{port}/v1/chat/completions", "model": MODEL,
+        "workload": "SparkDash hash-map prose", "thinking": True, "temperature": 0.7,
+        "prompt_source": ("https://github.com/MiaAI-Lab/sparkDash/blob/"
+                          "91a3e46d7cbadf6daf4d53b5e7ae34e519f353ca/src/shared/llmPrompts.js#L53-L56"),
+        "top_p": 1, "top_k": 20, "completion_tokens_per_request": THINKING_PROSE_BUDGET,
+        "repeats_per_concurrency": 3, "batches": batches, "best_by_concurrency": best_by_concurrency,
+    }
 
 
 def host_memory():
@@ -237,6 +328,8 @@ def decode_batch_with_memory(port, seed, streams, timeout, workload):
 def benchmark(port, profile, seed, timeout, sample_memory=False):
     require_model(port)
     stream_counts, prompt_targets = PROFILES[profile]
+    if profile == "prose-thinking-on":
+        return thinking_prose_benchmark(port, stream_counts, timeout)
     stream_completion(port, output_prompt(seed, -1), 16, timeout)
     decode_rows = []
     run_decode = decode_batch_with_memory if sample_memory else decode_batch
@@ -300,8 +393,8 @@ def main():
     args = parser.parse_args()
     if not 1 <= args.timeout <= 1800:
         parser.error("--timeout must be between 1 and 1800 seconds")
-    if args.sample_memory and not PROFILES[args.profile][0]:
-        parser.error("--sample-memory requires a decode workload")
+    if args.sample_memory and (not PROFILES[args.profile][0] or args.profile == "prose-thinking-on"):
+        parser.error("--sample-memory requires a thinking-off decode workload")
     if args.output and args.output.exists():
         parser.error(f"output already exists: {args.output}")
     try:

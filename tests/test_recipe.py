@@ -190,6 +190,24 @@ class FakeApi(BaseHTTPRequestHandler):
         if not body.get("stream"):
             self.send_json({"choices": [{"message": {"content": "SPARK_OK"}}]})
             return
+        if body.get("chat_template_kwargs", {}).get("enable_thinking"):
+            if (body.get("temperature"), body.get("top_p"), body.get("top_k")) != (0.7, 1, 20):
+                self.send_error(400, "unexpected thinking-on sampler")
+                return
+            cap = body["max_tokens"]
+            if cap == 400 and (body.get("min_tokens") != cap or not body.get("ignore_eos")):
+                self.send_error(400, "expected a forced 400-token completion")
+                return
+            events = [
+                {"choices": [{"delta": {"reasoning_content": "first reasoning"}}]},
+                {"choices": [{"delta": {"reasoning": "continued reasoning"}}]},
+                {"choices": [{"delta": {"content": "answer text"}, "finish_reason": "length"}]},
+                {"usage": {"prompt_tokens": count, "completion_tokens": cap - int(text == "short result"),
+                           "prompt_tokens_details": {"cached_tokens": 2}}},
+            ]
+            data = "".join("data: " + json.dumps(event) + "\n\n" for event in events)
+            self.send_data((data + "data: [DONE]\n\n").encode(), "text/event-stream")
+            return
         marker = re.search(r"AUDIT CODE: (FROST-[A-F0-9]+)", text)
         answer = marker[1] if marker else "An inventory record"
         events = [
@@ -242,6 +260,29 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(row["engine_decode_tokens_per_second"], 40)
         self.assertEqual(row["cached_prompt_tokens"], 1)
         self.assertGreaterEqual(row["elapsed_seconds"], row["first_content_seconds"])
+
+    def test_thinking_prose_profile_has_five_concurrencies_and_paired_timings(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            result = benchmark.benchmark(self.port, "prose-thinking-on", 42, 5)
+        groups = result["best_by_concurrency"]
+        self.assertEqual([wave["streams"] for wave in groups], [1, 2, 3, 4, 5])
+        self.assertEqual(len(result["batches"]), 15)
+        for wave in result["batches"]:
+            requests = wave["requests"]
+            self.assertEqual(len({row["prompt_sha256"] for row in requests}), wave["streams"])
+            self.assertTrue(all(row["completion_tokens"] == 400 for row in requests))
+            self.assertTrue(all(row["ttft_answer_ms"] > row["ttft_any_ms"] for row in requests))
+            self.assertTrue(all(row["cached_tokens"] == 2 for row in requests))
+            if wave["streams"] == 1:
+                self.assertEqual(wave["aggregate_decode_tok_s"], requests[0]["stream_decode_tok_s"])
+        for best in groups:
+            waves = [wave for wave in result["batches"] if wave["streams"] == best["streams"]]
+            self.assertEqual(best["aggregate_decode_tok_s"],
+                             max(wave["aggregate_decode_tok_s"] for wave in waves))
+
+    def test_forced_thinking_prose_checks_completion_count(self):
+        with self.assertRaisesRegex(local_api.ApiError, "expected 400 output tokens"):
+            benchmark.stream_completion(self.port, "short result", 400, 5, thinking=True, force_length=True)
 
     def test_stream_needs_explicit_counters(self):
         with self.assertRaisesRegex(local_api.ApiError, "explicit positive"):
