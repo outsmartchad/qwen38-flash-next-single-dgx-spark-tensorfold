@@ -4,6 +4,8 @@ Serve NVIDIA’s **Qwen3.8 Flash Next NVFP4** checkpoint with **TensorFold** on 
 
 [How the model works](docs/how-it-works.md) · [Quick start](#quick-start) · [Reproduce](docs/reproduce.md) · [Troubleshooting](docs/troubleshooting.md) · [Results](results/README.md) · [Benchmarks](#benchmarks)
 
+![Qwen3.8 Flash Next on one DGX Spark with TensorFold. Prose decode reaches 56.0 tok/s for one stream and 125.6 tok/s aggregate for five. Fresh prefill reaches 2,343 tok/s at 32K and 2,099 tok/s at 200K.](assets/qwen38-flash-next-benchmark.png)
+
 ## Quick start
 
 Run these commands on **one NVIDIA DGX Spark (GB10, Linux ARM64)**. You need Python 3.9+, Bash 4.4+, Git, curl, Docker Engine with local socket access, and the NVIDIA container runtime. For a fresh install, allow about **160 GiB free disk** and **107 GiB available unified memory** at startup. [Host checklist and storage setup](docs/reproduce.md#before-you-start)
